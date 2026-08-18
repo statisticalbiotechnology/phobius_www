@@ -29,7 +29,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from . import __version__, engines, features, plot
-from .config import settings
+from .config import homology_search_status, native_engine_status, settings
 from .fasta import FastaError, Record, parse, parse_alignment
 from .homology import HomologyError, search_and_align
 from .models import (
@@ -44,6 +44,16 @@ from .models import (
 )
 
 log = logging.getLogger("phobius")
+
+# Uvicorn installs handlers for its own loggers only, so our records would print
+# without a level and a warning could be scrolled past. Give this logger its own
+# handler, formatted like uvicorn's, and stop it propagating to avoid duplicates.
+if not log.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(levelname)-8s phobius: %(message)s"))
+    log.addHandler(_handler)
+    log.propagate = False
+    log.setLevel(logging.INFO)
 
 _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
@@ -76,11 +86,22 @@ async def lifespan(_: FastAPI):
         log.error("configuration: %s", problem)
     if problems:
         raise RuntimeError("Phobius cannot start:\n  - " + "\n  - ".join(problems))
+    homology_ok, homology_reason = homology_search_status(settings)
+    if not homology_ok:
+        log.info("homology search disabled: %s", homology_reason)
+
+    native_ok, native_reason = native_engine_status(settings)
+    if settings.decodeanhmm and not native_ok:
+        log.warning(
+            "native fast path requested but unusable, falling back to the Java "
+            "engine: %s", native_reason,
+        )
     log.info(
-        "phobius %s ready (homology search: %s, native fast path: %s)",
+        "phobius %s ready (model: %s, homology search: %s, native fast path: %s)",
         __version__,
-        "yes" if settings.homology_search_available() else "no",
-        "yes" if settings.decodeanhmm else "no",
+        settings.model,
+        "yes" if homology_ok else "no",
+        "yes" if native_ok else "no",
     )
     yield
 
@@ -233,9 +254,13 @@ def _run_prediction(
 
 
 def _run_poly(records: list[Record], output: OutputFormat) -> list[ResultRow]:
-    """PolyPhobius prediction from an alignment."""
-    name, labels = engines.predict_alignment(records)
-    regions = features.label_runs(labels)
+    """PolyPhobius prediction from an alignment.
+
+    The engine reports one label per alignment *column*. Everything the user sees
+    is converted back to their own sequence's coordinates, except the
+    "graphics only" mode, which exists precisely to show the alignment.
+    """
+    name, aligned_labels = engines.predict_alignment(records)
     display_name = records[0].name
 
     if output is OutputFormat.PLOT_ONLY:
@@ -244,12 +269,13 @@ def _run_poly(records: list[Record], output: OutputFormat) -> list[ResultRow]:
             name=display_name,
             svg=plot.render(
                 posterior,
-                regions,
+                features.label_runs(aligned_labels),
                 "Superimposed posterior label probabilities",
                 subtitle="alignment coordinates",
             ),
         )]
 
+    regions = features.label_runs(engines.ungap_labels(aligned_labels))
     row = ResultRow(name=display_name)
     if output is OutputFormat.SHORT:
         row.short = features.short_format(display_name, regions)
@@ -257,12 +283,14 @@ def _run_poly(records: list[Record], output: OutputFormat) -> list[ResultRow]:
         row.long = features.long_format(display_name, regions)
 
     if output is OutputFormat.LONG_WITH_PLOT:
-        posterior = engines.posteriors_alignment(records)
+        posterior = engines.ungap_posterior(
+            engines.posteriors_alignment(records), aligned_labels
+        )
         row.svg = plot.render(
             posterior,
             regions,
             f"Posterior label probabilities for {display_name}",
-            subtitle="homology-supported, alignment coordinates",
+            subtitle="homology-supported",
         )
     return [row]
 
@@ -331,7 +359,7 @@ async def predict(
             rows = await run_in_threadpool(_with_slot, _run_poly, aligned, output)
             heading = "Homology-supported prediction"
             notice = (f"Aligned against {len(aligned) - 1} homologues found in "
-                      f"Swiss-Prot with DIAMOND.")
+                      f"Swiss-Prot with BLAST.")
 
         elif is_constrained:
             if output is OutputFormat.PLOT_ONLY:

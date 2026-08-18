@@ -13,7 +13,10 @@ from app.config import DATA_DIRS, Settings, data_dirs, discover
 
 @pytest.fixture(autouse=True)
 def clean_env(monkeypatch):
-    for var in ("PHOBIUS_MODEL", "PHOBIUS_DATA_DIR", "PHOBIUS_DIAMOND_DB"):
+    # Clear every variable these tests reason about, so a deployment-shaped
+    # environment (e.g. PHOBIUS_DECODEANHMM set on the host) cannot leak in.
+    for var in ("PHOBIUS_MODEL", "PHOBIUS_DATA_DIR",
+                "PHOBIUS_DECODEANHMM", "PHOBIUS_OPTIONS", "PHOBIUS_BLAST_DB"):
         monkeypatch.delenv(var, raising=False)
 
 
@@ -44,7 +47,7 @@ def test_data_dir_is_searched_first(monkeypatch, tmp_path):
 
 
 def test_image_does_not_pin_the_data_paths():
-    """The Dockerfile must not set PHOBIUS_MODEL or PHOBIUS_DIAMOND_DB.
+    """The Dockerfile must not set PHOBIUS_MODEL or PHOBIUS_BLAST_DB.
 
     An explicit value beats discovery, so pinning them in the image breaks every
     deployment whose storage is mounted anywhere other than the pinned path.
@@ -57,7 +60,7 @@ def test_image_does_not_pin_the_data_paths():
         if not line.lstrip().startswith("#")
     )
     assert "PHOBIUS_MODEL=" not in body
-    assert "PHOBIUS_DIAMOND_DB=" not in body
+    assert "PHOBIUS_BLAST_DB=" not in body
 
 
 def test_model_found_on_a_mounted_directory(monkeypatch, tmp_path):
@@ -109,9 +112,86 @@ def test_classpath_follows_the_discovered_model(monkeypatch, tmp_path):
     assert str(mount) in Settings().classpath
 
 
-def test_diamond_database_is_discovered_alongside_the_model(monkeypatch, tmp_path):
+def test_blast_database_is_discovered_alongside_the_model(monkeypatch, tmp_path):
+    """A BLAST database is a set of files sharing a prefix, so discovery keys off
+    the index file and returns the prefix, not a filename."""
     mount = tmp_path / "data"
     mount.mkdir()
-    (mount / "swissprot.dmnd").write_bytes(b"x")
+    (mount / "swissprot.pin").write_bytes(b"x")
     monkeypatch.setenv("PHOBIUS_DATA_DIR", str(mount))
-    assert Settings().diamond_db == mount / "swissprot.dmnd"
+    assert Settings().blast_db == mount / "swissprot"
+
+
+def test_split_blast_database_is_discovered(monkeypatch, tmp_path):
+    # A database large enough to be split has a .pal alias instead of a .pin.
+    mount = tmp_path / "data"
+    mount.mkdir()
+    (mount / "swissprot.pal").write_bytes(b"x")
+    monkeypatch.setenv("PHOBIUS_DATA_DIR", str(mount))
+    assert Settings().blast_db == mount / "swissprot"
+
+
+class TestNativeEngine:
+    """The optional native engine must never be able to break the service.
+
+    It is an accelerator producing byte-identical output, so anything wrong with
+    it degrades to the Java engine instead of failing startup or predictions.
+    """
+
+    def test_unconfigured_is_not_an_error(self):
+        from app.config import native_engine_status
+
+        usable, reason = native_engine_status(Settings())
+        assert usable is False
+        assert reason == "not configured"
+
+    def test_missing_binary_is_reported_not_raised(self, tmp_path):
+        from app.config import native_engine_status
+
+        usable, reason = native_engine_status(Settings(decodeanhmm=str(tmp_path / "absent")))
+        assert usable is False
+        assert "does not exist" in reason
+
+    def test_missing_options_file_is_reported(self, tmp_path):
+        from app.config import native_engine_status
+
+        binary = tmp_path / "decodeanhmm"
+        binary.write_text("#!/bin/sh\nexit 0\n")
+        binary.chmod(0o755)
+        usable, reason = native_engine_status(
+            Settings(decodeanhmm=str(binary), _options_override=str(tmp_path / "absent.options"))
+        )
+        assert usable is False
+        assert "options file is missing" in reason
+
+    def test_a_binary_that_cannot_exec_is_reported(self, tmp_path):
+        """Reproduces the 32-bit-binary-in-a-64-bit-image case."""
+        from app.config import native_engine_status
+
+        binary = tmp_path / "decodeanhmm"
+        binary.write_bytes(b"\x7fELF\x01\x01\x01\x00" + b"\x00" * 56)  # unloadable ELF
+        binary.chmod(0o755)
+        options = tmp_path / "phobius.options"
+        options.write_text("N 1\n")
+
+        usable, reason = native_engine_status(
+            Settings(decodeanhmm=str(binary), _options_override=str(options))
+        )
+        assert usable is False
+        assert "could not be executed" in reason
+        assert "32-bit" in reason
+
+    def test_a_non_executable_file_is_reported(self, tmp_path):
+        """Uploading to a volume commonly loses the execute bit."""
+        from app.config import native_engine_status
+
+        binary = tmp_path / "decodeanhmm"
+        binary.write_text("#!/bin/sh\nexit 0\n")
+        binary.chmod(0o644)
+        usable, reason = native_engine_status(Settings(decodeanhmm=str(binary)))
+        assert usable is False
+        assert "not executable" in reason
+
+    def test_check_does_not_make_a_broken_native_engine_fatal(self, tmp_path):
+        problems = Settings(decodeanhmm=str(tmp_path / "absent")).check()
+        assert not any("DECODEANHMM" in p for p in problems)

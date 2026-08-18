@@ -1,7 +1,7 @@
-"""Homology search pipeline (DIAMOND + Kalign).
+"""Homology search pipeline (BLAST+ and Kalign).
 
-These tests build a throwaway DIAMOND database rather than depending on
-Swiss-Prot being present, so they run anywhere the two tools are installed.
+These tests build a throwaway BLAST database rather than depending on Swiss-Prot
+being present, so they run anywhere the tools are installed.
 """
 
 import os
@@ -15,11 +15,13 @@ from app.config import Settings
 from app.fasta import Record
 from app.homology import HomologyError, align, search
 
-DIAMOND = shutil.which("diamond")
+MAKEBLASTDB = shutil.which("makeblastdb")
+BLASTP = shutil.which("blastp")
 KALIGN = shutil.which("kalign")
 
 pytestmark = pytest.mark.skipif(
-    not (DIAMOND and KALIGN), reason="diamond and kalign are not installed"
+    not (MAKEBLASTDB and BLASTP and KALIGN),
+    reason="ncbi-blast+ and kalign are not installed",
 )
 
 QUERY = (
@@ -32,7 +34,7 @@ QUERY = (
 @pytest.fixture(scope="module")
 def tiny_db(tmp_path_factory):
     """A database of near-identical homologues plus unrelated decoys."""
-    directory = tmp_path_factory.mktemp("diamonddb")
+    directory = tmp_path_factory.mktemp("blastdb")
     fasta = directory / "db.fasta"
     rng = random.Random(3)
 
@@ -48,28 +50,33 @@ def tiny_db(tmp_path_factory):
 
     fasta.write_text("\n".join(records) + "\n")
     subprocess.run(
-        [DIAMOND, "makedb", "--in", str(fasta), "--db", str(directory / "test"), "--quiet"],
-        check=True, cwd=directory,
+        [MAKEBLASTDB, "-in", str(fasta), "-dbtype", "prot", "-title", "test",
+         "-out", str(directory / "swissprot"), "-parse_seqids"],
+        check=True, capture_output=True, cwd=directory,
     )
-    return directory / "test.dmnd"
+    return directory / "swissprot"
 
 
 @pytest.fixture
 def cfg(tiny_db):
-    return Settings(diamond_db=tiny_db)
+    return Settings(blast_db=tiny_db)
 
 
 def test_search_finds_homologues_and_drops_decoys(cfg):
     hits = search(Record("query", QUERY), cfg)
     assert hits[0].name == "query"
     assert len(hits) > 1
-    assert all("DECOY" not in r.name for r in hits)
+    assert all("DECOY" not in r.name for r in hits[1:])
 
 
 def test_search_returns_full_subject_sequences(cfg):
-    # --outfmt full_sseq is what let us delete the BioPerl fasta index entirely.
+    """blastdbcmd retrieves whole proteins, not just the aligned segments.
+
+    BLAST's own `sseq` output would give only the aligned region, which would
+    truncate the homologues before they reach the aligner.
+    """
     hits = search(Record("query", QUERY), cfg)
-    assert all(len(r.sequence) > 100 for r in hits[1:])
+    assert all(len(r.sequence) == len(QUERY) for r in hits[1:])
     assert all("-" not in r.sequence for r in hits[1:])
 
 
@@ -80,8 +87,8 @@ def test_alignment_is_rectangular_with_query_first(cfg):
 
 
 def test_pipeline_does_not_write_to_the_working_directory(cfg, tmp_path, monkeypatch):
-    """Regression: DIAMOND defaults to scratch files in the working directory,
-    which fails when the container runs as UID 1000 against a read-only /app."""
+    """Regression: a search tool defaulting to scratch files in the working
+    directory fails when the container runs as UID 1000 against a read-only /app."""
     workdir = tmp_path / "readonly"
     workdir.mkdir()
     monkeypatch.chdir(workdir)
@@ -95,7 +102,7 @@ def test_pipeline_does_not_write_to_the_working_directory(cfg, tmp_path, monkeyp
 
 
 def test_missing_database_gives_a_useful_message(tmp_path):
-    cfg = Settings(diamond_db=tmp_path / "nope.dmnd")
+    cfg = Settings(blast_db=tmp_path / "nope")
     with pytest.raises(HomologyError, match="No homology database"):
         search(Record("query", QUERY), cfg)
 
@@ -104,3 +111,16 @@ def test_no_homologues_is_reported_clearly(cfg):
     unrelated = Record("q", "WWWWWWWWWWCCCCCCCCCCWWWWWWWWWWCCCCCCCCCCWWWWWWWWWW")
     with pytest.raises(HomologyError, match="No homologues|coverage"):
         search(unrelated, cfg)
+
+
+def test_database_without_parse_seqids_is_reported(tmp_path):
+    """Without -parse_seqids the search succeeds but retrieval returns nothing."""
+    fasta = tmp_path / "db.fasta"
+    fasta.write_text(f">sp|X|HOMOLOG\n{QUERY}\n")
+    subprocess.run(
+        [MAKEBLASTDB, "-in", str(fasta), "-dbtype", "prot", "-out", str(tmp_path / "swissprot")],
+        check=True, capture_output=True, cwd=tmp_path,
+    )
+    cfg = Settings(blast_db=tmp_path / "swissprot")
+    with pytest.raises(HomologyError):
+        search(Record("query", QUERY), cfg)

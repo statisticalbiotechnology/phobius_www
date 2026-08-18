@@ -25,7 +25,7 @@ The mounted directory must contain `phobius.model`. See **Licensed files** below
 | `app/fasta.py` | FASTA parsing and residue normalisation |
 | `app/features.py` | label strings → feature tables and topology strings |
 | `app/engines.py` | subprocess wrappers around the prediction engines |
-| `app/homology.py` | DIAMOND + Kalign pipeline for PolyPhobius |
+| `app/homology.py` | BLAST+ and Kalign pipeline for PolyPhobius |
 | `app/plot.py` | posterior probability plot, rendered as inline SVG |
 | `app/models.py` | request validation and submission limits |
 | `app/main.py` | FastAPI routes and templates |
@@ -45,12 +45,43 @@ published freely.
 | `homologhmm.jar` | GPL | in the image |
 | `biojava.jar` | LGPL | in the image |
 
-The Java engine covers every prediction mode, so `decodeanhmm` is not needed at
-all. It is roughly 8× faster for plain single-sequence predictions (41 ms versus
-356 ms, dominated by JVM startup; throughput differs by only ~1.4×). If you have
-a licensed copy on the mounted volume you can enable it by setting
-`PHOBIUS_DECODEANHMM` — put `phobius.options` beside it. The golden tests assert
-both engines produce identical output.
+### The optional native engine
+
+The Java engine covers every prediction mode, so `decodeanhmm` is **not needed**.
+It is about 8× faster for a single sequence (41 ms versus 356 ms, almost all of
+it JVM startup), but only ~1.4× on throughput, so on a web form the difference is
+imperceptible. Most deployments should skip it.
+
+If you do want it, put all three files on the same mounted storage:
+
+```
+/home/data/phobius.model      # required
+/home/data/phobius.options    # required by decodeanhmm; looked for beside the model
+/home/data/decodeanhmm        # the licensed binary, chmod +x
+/home/data/phobius.env        # PHOBIUS_DECODEANHMM=/home/data/decodeanhmm
+```
+
+`phobius.options` is looked for next to the model, not next to the binary;
+`PHOBIUS_OPTIONS` overrides that.
+
+**The historical binary will not work.** It is a 32-bit build and the image is
+64-bit with no i386 libraries, so it cannot be executed at all. Rebuild it for
+64-bit from the anhmm source first.
+
+Nothing here can break the service. At startup the binary is probed with a real
+prediction, and if anything is wrong — missing, not executable, wrong
+architecture, missing options file — the reason is logged and the Java engine is
+used instead:
+
+```
+WARNING  phobius: native fast path requested but unusable, falling back to the
+Java engine: '/home/data/decodeanhmm' could not be executed (No such file or
+directory). The historical build is 32-bit and cannot run in this 64-bit image;
+rebuild it for 64-bit from the anhmm source.
+```
+
+The golden tests assert both engines produce byte-identical output, so switching
+between them cannot change results.
 
 ## Configuration
 
@@ -59,7 +90,7 @@ both engines produce identical output.
 | `PHOBIUS_MODEL` | *discovered* | full path to the licensed model; must be named `phobius.model` |
 | `PHOBIUS_DATA_DIR` | *unset* | directory searched before the defaults |
 | `PHOBIUS_ENGINE_DIR` | `/app/engine` | directory holding the jars |
-| `PHOBIUS_DIAMOND_DB` | *discovered* | homology database; absent disables that mode |
+| `PHOBIUS_BLAST_DB` | *discovered* | BLAST database prefix; absent disables that mode |
 | `PHOBIUS_DECODEANHMM` | unset | optional licensed native engine |
 | `PHOBIUS_MAX_SEQUENCES` | `100` | sequences per request |
 | `PHOBIUS_MAX_RESIDUES` | `50000` | residues per request (~20 s of compute) |
@@ -80,7 +111,8 @@ You normally do not need to configure anything. Mount the storage holding
 3. `/mnt/data`, `/home/data`, `/data`, `/app/data`
 4. `engine/phobius.model` beside the source, for local development
 
-The same search locates `swissprot.dmnd`. The image deliberately does **not**
+The same search locates the BLAST database, keying off `swissprot.pin`
+(or `swissprot.pal` for a split database) and using its prefix. The image deliberately does **not**
 pin `PHOBIUS_MODEL`, because an explicit value beats discovery and would break
 every deployment whose storage is mounted somewhere else.
 
@@ -107,15 +139,41 @@ executed, so the file cannot be used to run arbitrary commands from the volume.
 ## Homology search (optional)
 
 PolyPhobius works two ways. Supplying your own aligned FASTA needs no database
-and is the reproducible option. The automatic search needs a DIAMOND database:
+and is the reproducible option. The automatic search needs a BLAST database on
+the mounted storage:
 
 ```bash
-./scripts/build_swissprot_db.sh /mnt/data
+./scripts/build_swissprot_db.sh /home/data
 ```
 
-That produces a ~250 MB index. The original server searched UniProt/TrEMBL with
-legacy BLAST; Swiss-Prot with DIAMOND is a different search, so predictions from
-this path will not reproduce historical ones.
+That downloads Swiss-Prot and produces ~340 MB of `swissprot.*` files, well
+inside the 5 GB volume cap. The option appears in the PolyPhobius form by itself
+once the database is readable.
+
+`-parse_seqids` is required and the script passes it: without it the search still
+runs but `blastdbcmd` cannot retrieve the full subject sequences the aligner
+needs. A database missing it is reported at startup rather than failing per
+request.
+
+The original server searched UniProt/TrEMBL, so predictions from this path will
+not reproduce historical ones.
+
+### Why BLAST rather than DIAMOND
+
+DIAMOND is the faster tool for bulk searches, but its cost for a *single* query
+is dominated by building a seed index over the whole database. Measured against
+Swiss-Prot on this image, one query:
+
+| | time | homologues found |
+|---|---|---|
+| DIAMOND `--very-sensitive` | 42.8 s | 7 |
+| DIAMOND default, `-c1` | 16.0 s | 5 |
+| **blastp** | **1.2 s** | **8** |
+
+blastp is 36× faster and returned a strict superset. End to end the request went
+from 78 s to 1.25 s. The database location makes no difference — reading it from
+the mounted volume cost 16.0 s versus 17.5 s from container-local disk, so this
+is compute, not I/O.
 
 ## Publishing the image
 
@@ -181,6 +239,13 @@ unless you enable the homology search.
 Default resources (2 vCPU, 4 GB) are ample. If you raise them, raise
 `PHOBIUS_MAX_CONCURRENCY` to match.
 
+## The old address
+
+`phobius.sbc.su.se` has been the published URL since 2004 and appears in cited
+methods sections. See [docs/legacy-redirect.md](docs/legacy-redirect.md) for how
+to point it at this service — including why a 308 rather than a 301 matters for
+scripts that still POST to `/cgi-bin/predict.pl`.
+
 ## API
 
 `POST /api/predict` with `{"sequence": "<FASTA>"}` returns structured
@@ -200,7 +265,7 @@ pytest
 ```
 
 Tests that need an engine skip cleanly when the model is absent. `pytest` also
-skips the homology tests unless `diamond` and `kalign` are on `PATH`; the
+skips the homology tests unless `ncbi-blast+` and `kalign` are on `PATH`; the
 container has both.
 
 ### Changing prediction behaviour

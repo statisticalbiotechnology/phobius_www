@@ -6,13 +6,15 @@
 # Serve requires, while the licensed parts stay under their own terms.
 FROM python:3.12-slim-bookworm
 
-# openjdk    - runs homologhmm.jar (GPL) and biojava.jar (LGPL)
-# diamond    - homology search for PolyPhobius, replacing legacy blastall
-# kalign     - multiple alignment, replacing the bundled 32-bit Kalign
-# curl       - container healthcheck
+# openjdk     - runs homologhmm.jar (GPL) and biojava.jar (LGPL)
+# ncbi-blast+ - homology search for PolyPhobius, replacing legacy blastall.
+#               DIAMOND was measured at 42.8 s per single query against
+#               Swiss-Prot where blastp takes 1.2 s; see app/homology.py.
+# kalign      - multiple alignment, replacing the bundled 32-bit Kalign
+# curl        - container healthcheck
 RUN apt-get update && apt-get install -y --no-install-recommends \
         openjdk-17-jre-headless \
-        diamond-aligner \
+        ncbi-blast+ \
         kalign \
         curl \
     && rm -rf /var/lib/apt/lists/*
@@ -36,10 +38,10 @@ COPY scripts ./scripts
 COPY start-script.sh ./start-script.sh
 RUN chmod +x ./start-script.sh
 
-# Mount point for the licensed model and the DIAMOND database.
+# Mount point for the licensed model and the BLAST database.
 RUN mkdir -p /mnt/data && chown phobius:phobius /mnt/data
 
-# PHOBIUS_MODEL and PHOBIUS_DIAMOND_DB are deliberately NOT set here. An
+# PHOBIUS_MODEL and PHOBIUS_BLAST_DB are deliberately NOT set here. An
 # explicit value overrides discovery, so pinning them to /mnt/data would break
 # every deployment whose storage is mounted somewhere else -- which is the
 # normal case, since the mount path is chosen per project. See app/config.py.

@@ -16,7 +16,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from .config import Settings, settings as default_settings
+from .config import Settings, native_engine_status, settings as default_settings
 from .fasta import Record, format_fasta
 
 #: Aggregation of per-label posteriors into the four plotted curves.
@@ -32,6 +32,30 @@ CURVES: dict[str, tuple[str, ...]] = {
     "transmembrane": ("M",),
     "signal_peptide": ("n", "h", "c"),
 }
+
+
+#: Character the engines emit for an alignment column where the query has a gap.
+GAP = "-"
+
+
+def ungap_labels(labels: str) -> str:
+    """Drop alignment gap columns, giving labels in query-sequence coordinates.
+
+    An alignment-based prediction returns one label per alignment *column*, so
+    positions derived from it directly would not match the sequence the user
+    submitted. The legacy code advanced its position counter only across matched
+    label runs (predict.pl:271), which had the same effect.
+    """
+    return labels.replace(GAP, "")
+
+
+def ungap_posterior(posterior: "Posterior", labels: str) -> "Posterior":
+    """Restrict posterior curves to the columns where the query has a residue."""
+    keep = [i for i, label in enumerate(labels) if label != GAP]
+    return Posterior({
+        curve: [values[i] for i in keep if i < len(values)]
+        for curve, values in posterior.curves.items()
+    })
 
 
 class EngineError(RuntimeError):
@@ -170,7 +194,7 @@ def predict(
     """
     cfg = cfg or default_settings
 
-    if cfg.decodeanhmm and not constraints:
+    if not constraints and native_engine_status(cfg)[0]:
         return _predict_decodeanhmm(records, cfg)
 
     args = ["-raw"]

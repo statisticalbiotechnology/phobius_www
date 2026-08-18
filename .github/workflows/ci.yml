@@ -18,8 +18,8 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Install DIAMOND and Kalign
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends diamond-aligner kalign
+      - name: Install BLAST+ and Kalign
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ncbi-blast+ kalign
 
       - name: Install the package
         run: pip install -e ".[dev]"
