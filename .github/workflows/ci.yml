@@ -109,12 +109,37 @@ jobs:
           echo "image runs as uid $uid"
           [ "$uid" = "1000" ] || { echo "::error::image runs as uid $uid, Serve requires 1000"; exit 1; }
 
+      - name: Verify the Serve start-up script
+        # SciLifeLab Serve launches the container by running ./start-script.sh
+        # from the image WORKDIR. A missing or non-executable script fails at
+        # deploy time with "/bin/sh: 1: ./start-script.sh: not found", which no
+        # amount of local `docker run` would reveal, because that path uses the
+        # ENTRYPOINT instead.
+        run: |
+          workdir=$(docker image inspect phobius:candidate --format '{{.Config.WorkingDir}}')
+          entrypoint=$(docker image inspect phobius:candidate --format '{{json .Config.Entrypoint}}')
+          echo "WORKDIR:    ${workdir:-<empty>}"
+          echo "ENTRYPOINT: $entrypoint"
+
+          if [ -z "$workdir" ]; then
+            echo "::error::the image has no WORKDIR; Serve needs one to find the start-up script"
+            exit 1
+          fi
+          if ! docker run --rm --entrypoint sh phobius:candidate -c '[ -x ./start-script.sh ]'; then
+            echo "::error::./start-script.sh is missing or not executable at $workdir"
+            exit 1
+          fi
+          echo "start-script.sh is present and executable at $workdir"
+
       - name: Smoke-test the image
         # A placeholder model is enough to start the service; the licensed file
         # is only needed to make an actual prediction, which the tests cover.
         run: |
           mkdir -p "$RUNNER_TEMP/mnt" && : > "$RUNNER_TEMP/mnt/phobius.model"
-          docker run -d --name smoke -p 8000:8000 -v "$RUNNER_TEMP/mnt:/mnt/data:ro" phobius:candidate
+          # Start it exactly as Serve does -- overriding the entrypoint and
+          # invoking the script by path -- so this covers the real launch path.
+          docker run -d --name smoke -p 8000:8000 -v "$RUNNER_TEMP/mnt:/mnt/data:ro" \
+            --entrypoint /bin/sh phobius:candidate -c './start-script.sh'
 
           for _ in $(seq 30); do
             if curl -fsS http://localhost:8000/healthz >/dev/null 2>&1; then
@@ -157,8 +182,13 @@ jobs:
           # layers rather than building anything new.
           cache-from: type=gha
 
+      # Provenance attestation requires a public repository (or a paid plan for
+      # private ones), and runs after the image is already pushed -- so it is
+      # skipped rather than allowed to turn a successful publish red. It starts
+      # working by itself once the repository is made public, which SciLifeLab
+      # Serve requires anyway.
       - name: Attest build provenance
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && github.event.repository.private == false
         uses: actions/attest-build-provenance@v2
         with:
           subject-name: ${{ env.IMAGE }}

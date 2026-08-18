@@ -29,6 +29,7 @@ The mounted directory must contain `phobius.model`. See **Licensed files** below
 | `app/plot.py` | posterior probability plot, rendered as inline SVG |
 | `app/models.py` | request validation and submission limits |
 | `app/main.py` | FastAPI routes and templates |
+| `start-script.sh` | container entry point; Serve runs this from the WORKDIR |
 | `engine/` | `homologhmm.jar` (GPL), `biojava.jar` (LGPL) |
 | `tests/golden/` | reference output captured from the legacy engine |
 
@@ -99,13 +100,25 @@ a licensed file that reached a public registry could not be un-published:
 |---|---|
 | licensed files | `phobius.model`, `phobius.options` or `decodeanhmm` is in the image |
 | runtime user | the image does not run as UID 1000 |
+| start-up script | `./start-script.sh` is missing or not executable at the WORKDIR |
 | smoke test | the container does not boot and serve `/healthz`, `/`, `/docs` |
+
+The smoke test launches the container the way Serve does — overriding the
+entrypoint and invoking `./start-script.sh` by path — rather than relying on the
+`ENTRYPOINT`, because those two paths can differ and only the first is what
+actually runs in production.
 
 The smoke test uses a placeholder model, so CI never needs the licensed file.
 
 > **On the first push the GHCR package is private.** Serve can only pull public
 > images, so go to *Packages → phobius → Package settings → Change visibility →
 > Public* once. Later pushes keep that setting.
+
+Build provenance attestation is attempted only when the repository itself is
+public — GitHub requires a public repo (or a paid plan) to persist attestations,
+and the step runs *after* the image is pushed, so failing it would mark a
+successful publish as broken. It starts working on its own once the repository
+is made public.
 
 The image is amd64 only. To also build arm64, add
 `platforms: linux/amd64,linux/arm64` to the push step — expect a much longer
@@ -114,8 +127,10 @@ build, since the arm64 layers are emulated.
 ## Deploying on SciLifeLab Serve
 
 The image is built for the platform's constraints: it runs as **UID 1000**,
-listens on **port 8000** (Serve allows 3000–9999), holds no licensed or private
-data, and needs no persistent volume unless you enable the homology search.
+listens on **port 8000** (Serve allows 3000–9999), starts through an executable
+**`./start-script.sh` at the WORKDIR** (`/app`), which is how Serve launches a
+container, holds no licensed or private data, and needs no persistent volume
+unless you enable the homology search.
 
 1. Publish the image and make the GHCR package public, as above.
 2. In your project, define a storage mount and place `phobius.model` there —

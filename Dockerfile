@@ -30,6 +30,12 @@ RUN pip install --no-cache-dir --no-compile . && rm -rf /root/.cache
 COPY engine/homologhmm.jar engine/biojava.jar ./engine/
 COPY scripts ./scripts
 
+# SciLifeLab Serve launches the container by running ./start-script.sh from the
+# working directory, so it must sit at WORKDIR and be executable. chmod runs
+# here, while we are still root and before USER below.
+COPY start-script.sh ./start-script.sh
+RUN chmod +x ./start-script.sh
+
 # Mount point for the licensed model and the DIAMOND database.
 RUN mkdir -p /mnt/data && chown phobius:phobius /mnt/data
 
@@ -47,5 +53,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD curl -fsS http://127.0.0.1:8000/healthz || exit 1
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", \
-     "--workers", "1", "--proxy-headers", "--forwarded-allow-ips", "*"]
+ENTRYPOINT ["./start-script.sh"]
