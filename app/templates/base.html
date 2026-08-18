@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Phobius{% endblock %}</title>
+<link rel="icon" href="/static/phobius-16.png" type="image/png">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="wrap">
+
+<header class="masthead">
+  <div class="titles">
+    <h1>Phobius</h1>
+    <p class="tagline">A combined transmembrane topology and signal peptide predictor</p>
+  </div>
+  <img src="/static/phobius.gif" alt="">
+</header>
+
+<nav class="tabs">
+  <a href="/"{% if page == 'index' %} aria-current="page"{% endif %}>Normal prediction</a>
+  <a href="/constrained"{% if page == 'constrained' %} aria-current="page"{% endif %}>Constrained prediction</a>
+  <a href="/poly"{% if page == 'poly' %} aria-current="page"{% endif %}>PolyPhobius</a>
+  <a href="/instructions"{% if page == 'instructions' %} aria-current="page"{% endif %}>Instructions</a>
+  <a href="/download"{% if page == 'download' %} aria-current="page"{% endif %}>Download</a>
+  <a href="/api">API</a>
+</nav>
+
+{% block content %}{% endblock %}
+
+<footer>
+  <p>Phobius predicts transmembrane topology and signal peptides from a single
+  hidden Markov model. Please cite
+  <a href="https://doi.org/10.1016/j.jmb.2004.03.016">K&auml;ll, Krogh &amp; Sonnhammer, J Mol Biol 338:1027-1036 (2004)</a>{% if page == 'poly' %} and
+  <a href="https://doi.org/10.1093/bioinformatics/bti1014">K&auml;ll, Krogh &amp; Sonnhammer, Bioinformatics 21(Suppl 1):i251-i257 (2005)</a> for PolyPhobius{% endif %}.</p>
+</footer>
+
+</div>
+</body>
+</html>

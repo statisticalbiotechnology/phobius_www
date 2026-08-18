@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Phobius &mdash; instructions{% endblock %}
+{% block content %}
+<h2>Instructions</h2>
+
+<h3>Input</h3>
+<p>Phobius takes proteins in <strong>FASTA format</strong>. It recognises the
+20 amino acids plus B, Z and X, which are all treated as unknown. Any other
+character is removed. Lowercase input is accepted and converted to uppercase.</p>
+<p>This server accepts up to {{ settings.max_sequences }} sequences and
+{{ "{:,}".format(settings.max_residues_total) }} residues per request; a single
+sequence may be at most {{ "{:,}".format(settings.max_residues_single) }} residues.
+For whole proteomes, install the <a href="/download">standalone package</a>.</p>
+
+<h3>Long output format</h3>
+<p>The long format lists the predicted transmembrane helices, the intervening
+loop regions and the signal peptide, as a UniProt-style feature table:</p>
+<pre>ID   MTH_DROMEa signal peptide
+FT   SIGNAL        1     24
+FT   REGION        1      3       N-REGION.
+FT   REGION        4     19       H-REGION.
+FT   REGION       20     24       C-REGION.
+FT   TOPO_DOM     25    218       NON CYTOPLASMIC.
+FT   TRANSMEM    219    238
+FT   TOPO_DOM    239    249       CYTOPLASMIC.
+//</pre>
+<p>If the whole sequence is labelled cytoplasmic or non-cytoplasmic, the
+prediction is that it contains no membrane helices. <em>It is not wise to
+interpret that as a prediction of location.</em> The prediction gives the most
+probable location and orientation of transmembrane helices, found by an
+algorithm called N-best (1-best in this case) that sums over all paths through
+the model with the same location and direction of helices.</p>
+
+<h3>Short output format</h3>
+<p>One line per protein: the identifier, then the number of predicted
+transmembrane segments, a Y/0 indicator for a signal peptide, and the topology.</p>
+<pre>{{ short_header }}
+MTH_DROME                       7  Y n4-19c24/25o219-238i250-269o281-302i</pre>
+<p>Helix positions are separated by <code>i</code> where the loop is cytoplasmic
+and <code>o</code> where it is non-cytoplasmic. A signal peptide is given as the
+position of its h-region between <code>n</code> and <code>c</code>, followed by
+the last residue of the signal peptide and the first of the mature protein,
+separated by <code>/</code>.</p>
+
+<h3>Plot of probabilities</h3>
+<p>The plot shows the posterior probability that each residue is cytoplasmic,
+non-cytoplasmic, part of a transmembrane helix, or part of a signal peptide.
+Weak helices that did not make it into the prediction show up here, as does the
+certainty of each segment. The bar under the axis shows the one-best prediction.</p>
+<p>Plot and prediction can look contradictory, because the plot shows
+per-residue probabilities whereas the prediction is the single most probable
+overall structure. Treat the plot as complementary information.</p>
+
+<h3>Constrained prediction</h3>
+<p>If you already know where part of the protein sits, fix it on the
+<a href="/constrained">constrained prediction</a> page and Phobius will find the
+most probable topology consistent with your constraints.</p>
+
+<h3>Homology-supported prediction</h3>
+<p>Topology is more conserved than sequence, so <a href="/poly">PolyPhobius</a>
+can use an alignment of homologues to sharpen a prediction. Supply an aligned
+FASTA file&mdash;the prediction is reported for the first sequence.
+{% if homology_search %}Alternatively, submit a single sequence and the server
+will search {{ homology_db }} and build the alignment for you.{% endif %}</p>
+
+<h3>Programmatic access</h3>
+<p>See the <a href="/api">API page</a> for a JSON endpoint suitable for scripting.</p>
+
+<h3>Getting help</h3>
+<p>Please report problems via the
+<a href="https://github.com/statisticalbiotechnology/phobius_www/issues">issue tracker</a>.</p>
+{% endblock %}

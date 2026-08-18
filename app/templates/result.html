@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Phobius &mdash; prediction{% endblock %}
+{% block content %}
+<h2>{{ heading }}</h2>
+
+{% if constraints %}
+<fieldset>
+  <legend>Applied constraints</legend>
+  <ul>{% for c in constraints %}<li>{{ c.description }}</li>{% endfor %}</ul>
+</fieldset>
+{% endif %}
+
+{% if notice %}<p class="hint">{{ notice }}</p>{% endif %}
+
+{% if format.value == 'short' %}
+<pre>{{ short_header }}
+{% for r in results %}{{ r.short }}
+{% endfor %}</pre>
+
+{% else %}
+{% for r in results %}
+<section class="result">
+  <h3>{{ r.name }}</h3>
+  {% if r.long %}<pre>{{ r.long }}</pre>{% endif %}
+  {% if r.svg %}
+  <figure>
+    {{ r.svg | safe }}
+    <figcaption class="hint">Posterior probability that each residue carries
+    each label, summed over all paths through the model. The bar under the axis
+    shows the one-best prediction.</figcaption>
+  </figure>
+  {% endif %}
+</section>
+{% endfor %}
+{% endif %}
+
+<p style="margin-top:2rem">
+  <a href="{{ back }}">&larr; Make another prediction</a>
+</p>
+{% endblock %}

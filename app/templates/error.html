@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Phobius &mdash; error{% endblock %}
+{% block content %}
+<div class="error">
+  <h2>{{ title }}</h2>
+  <p>{{ message }}</p>
+</div>
+<p><a href="{{ back }}">&larr; Back to the form</a></p>
+{% endblock %}

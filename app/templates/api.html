@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Phobius &mdash; API{% endblock %}
+{% block content %}
+<h2>API</h2>
+<p>A JSON endpoint for scripting. Interactive documentation is at
+<a href="/docs">/docs</a>.</p>
+
+<h3>POST /api/predict</h3>
+<pre>curl -s https://{{ host }}/api/predict \
+  -H 'Content-Type: application/json' \
+  -d '{"sequence": "&gt;my_protein\nMYGKIIFVLLLSAIVSISASSTTGVAMHTS..."}'</pre>
+
+<p>Response:</p>
+<pre>{
+  "predictions": [
+    {
+      "id": "my_protein",
+      "length": 150,
+      "transmembrane_count": 1,
+      "signal_peptide": true,
+      "cleavage_site": 19,
+      "topology": "n5-15c19/20o92-114i",
+      "features": [
+        {"label": "n", "start": 1,  "stop": 4},
+        {"label": "h", "start": 5,  "stop": 15},
+        {"label": "c", "start": 16, "stop": 19},
+        {"label": "C", "start": 20, "stop": 20},
+        {"label": "o", "start": 21, "stop": 91},
+        {"label": "M", "start": 92, "stop": 114},
+        {"label": "i", "start": 115,"stop": 150}
+      ]
+    }
+  ]
+}</pre>
+
+<p>Pass <code>"plot": true</code> to receive an SVG posterior plot per sequence
+in an <code>svg</code> field. Limits are the same as the web form:
+{{ settings.max_sequences }} sequences and
+{{ "{:,}".format(settings.max_residues_total) }} residues per request.</p>
+
+<h3>Plain text</h3>
+<p><code>POST /api/predict.txt</code> with the same body returns the long
+feature-table format as <code>text/plain</code>; add <code>?format=short</code>
+for the one-line-per-protein format.</p>
+{% endblock %}

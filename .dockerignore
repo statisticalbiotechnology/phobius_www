@@ -1,0 +1,14 @@
+old_phobius/
+tests/
+.git/
+.github/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+# Licensed artefacts must never be baked into the image.
+engine/phobius.model
+engine/phobius.options
+engine/decodeanhmm
+data/

@@ -1,0 +1,24 @@
+{% macro sequence_input(label='Paste your protein sequence here in FASTA format:') %}
+  <p><label for="protseq">{{ label }}</label>
+  <textarea id="protseq" name="protseq" spellcheck="false" placeholder="&gt;my_protein&#10;MYGKIIFVLLLSAIVSISASSTTGVAMHTS..."></textarea></p>
+  <p><label for="protfile">Or upload a file:</label>
+  <input id="protfile" type="file" name="protfile" accept=".fa,.fasta,.faa,.txt,text/plain"></p>
+{% endmacro %}
+
+{% macro output_format(include_plot_only=false) %}
+  <fieldset>
+    <legend>Output format</legend>
+    <label><input type="radio" name="format" value="short"> Short &mdash; one line per protein</label>
+    <label><input type="radio" name="format" value="nog"> Long &mdash; feature table, no graphics</label>
+    <label><input type="radio" name="format" value="plp" checked> Long with graphics</label>
+    {% if include_plot_only %}
+    <label><input type="radio" name="format" value="aplp"> Graphics only &mdash; probabilities in alignment coordinates (aligned FASTA input only)</label>
+    {% endif %}
+  </fieldset>
+{% endmacro %}
+
+{% macro limits(settings) %}
+  <p class="hint">Up to {{ settings.max_sequences }} sequences and
+  {{ "{:,}".format(settings.max_residues_total) }} residues per request.
+  For larger jobs, use the <a href="/download">standalone package</a>.</p>
+{% endmacro %}

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Phobius &mdash; PolyPhobius{% endblock %}
+{% from "_form_input.html" import sequence_input, output_format, limits %}
+{% block content %}
+<h2>Homology-supported prediction (PolyPhobius)</h2>
+<p>Transmembrane topology is better conserved than sequence, so aligning a
+protein with its homologues sharpens the prediction.</p>
+<form method="post" action="/predict" enctype="multipart/form-data">
+  <input type="hidden" name="poly" value="Y">
+  {{ sequence_input() }}
+
+  <fieldset>
+    <legend>Input format</legend>
+    <label><input type="radio" name="informat" value="align" checked>
+      Aligned FASTA &mdash; the prediction is reported for the first sequence</label>
+    {% if homology_search %}
+    <label><input type="radio" name="informat" value="blast">
+      Single sequence &mdash; search {{ homology_db }} for homologues and align them automatically</label>
+    {% else %}
+    <label><input type="radio" name="informat" value="blast" disabled>
+      Single sequence &mdash; automatic homology search (not configured on this server)</label>
+    {% endif %}
+  </fieldset>
+
+  {% if homology_search %}
+  <p class="hint"><strong>Note:</strong> the automatic search uses
+  {{ homology_db }} with DIAMOND. The original server searched UniProt/TrEMBL
+  with legacy BLAST, so results from this path will not match historical ones.
+  Supplying your own alignment is the reproducible option.</p>
+  {% endif %}
+
+  {{ output_format(include_plot_only=true) }}
+  <p><button type="submit">Submit</button>
+     <button type="reset" class="secondary">Reset</button></p>
+  {{ limits(settings) }}
+</form>
+{% endblock %}

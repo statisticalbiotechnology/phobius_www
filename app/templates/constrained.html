@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Phobius &mdash; constrained prediction{% endblock %}
+{% from "_form_input.html" import sequence_input, output_format, limits %}
+{% block content %}
+<h2>Constrained prediction</h2>
+<p>Fix the location of residues you already know about, and Phobius will find
+the most probable topology consistent with them.</p>
+<form method="post" action="/predict" enctype="multipart/form-data">
+  <input type="hidden" name="constrained" value="Y">
+  {{ sequence_input('Paste your protein sequence here in FASTA format (only the first sequence is used):') }}
+
+  <fieldset>
+    <legend>Constraints</legend>
+    <p class="hint">Positions separated by spaces. Ranges are written
+    <code>33-40</code>. Use <code>C</code> for the C-terminus.</p>
+    <table class="constraints">
+      <tr><td><label for="M">Membrane</label></td>
+          <td><input type="text" id="M" name="M" inputmode="numeric" placeholder="e.g. 33-40 122"></td></tr>
+      <tr><td><label for="i">Cytoplasmic loop</label></td>
+          <td><input type="text" id="i" name="i" inputmode="numeric" placeholder="e.g. 60 75-80"></td></tr>
+      <tr><td><label for="o">Non-cytoplasmic loop</label></td>
+          <td><input type="text" id="o" name="o" inputmode="numeric" placeholder="e.g. C"></td></tr>
+    </table>
+    <p><label><input type="checkbox" name="S" value="Y"> Constrain the N-terminus to be a signal peptide</label></p>
+  </fieldset>
+
+  {{ output_format() }}
+  <p><button type="submit">Submit</button>
+     <button type="reset" class="secondary">Reset</button></p>
+  {{ limits(settings) }}
+</form>
+{% endblock %}

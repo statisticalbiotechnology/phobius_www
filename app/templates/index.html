@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Phobius &mdash; normal prediction{% endblock %}
+{% from "_form_input.html" import sequence_input, output_format, limits %}
+{% block content %}
+<h2>Normal prediction</h2>
+<form method="post" action="/predict" enctype="multipart/form-data">
+  {{ sequence_input() }}
+  {{ output_format() }}
+  <p><button type="submit">Submit</button>
+     <button type="reset" class="secondary">Reset</button></p>
+  {{ limits(settings) }}
+</form>
+{% endblock %}

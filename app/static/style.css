@@ -1,0 +1,171 @@
+:root {
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --muted: #5a5a5a;
+  --accent: #990000;
+  --heading: #000066;
+  --border: #d8d8d8;
+  --surface: #f7f7f5;
+  --link: #0055cc;
+  --error-bg: #fdf2f2;
+  --error-border: #d98282;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0 1rem 4rem;
+  font-family: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--fg);
+  background: var(--bg);
+}
+
+.wrap { max-width: 60rem; margin: 0 auto; }
+
+header.masthead {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1.5rem 0 1rem;
+  flex-wrap: wrap;
+}
+header.masthead img { width: 110px; height: auto; }
+header.masthead .titles { flex: 1 1 20rem; }
+header.masthead h1 {
+  margin: 0;
+  font-size: 2.4rem;
+  color: var(--accent);
+  letter-spacing: -0.01em;
+}
+header.masthead p.tagline {
+  margin: 0.25rem 0 0;
+  color: var(--heading);
+  font-weight: 600;
+}
+
+nav.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 1.5rem;
+}
+nav.tabs a {
+  padding: 0.5rem 0.9rem;
+  text-decoration: none;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  font-size: 0.95rem;
+}
+nav.tabs a:hover { color: var(--fg); }
+nav.tabs a[aria-current="page"] {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+a { color: var(--link); }
+
+h2 { font-size: 1.5rem; margin-top: 2rem; }
+h3 { font-size: 1.15rem; margin-top: 1.75rem; }
+
+label { display: block; font-weight: 600; margin-bottom: 0.35rem; }
+
+textarea, input[type=text], input[type=file] {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+}
+textarea { min-height: 9rem; resize: vertical; }
+
+fieldset {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.9rem 1.1rem;
+  margin: 1.25rem 0;
+}
+fieldset legend { font-weight: 600; padding: 0 0.4rem; }
+fieldset label { font-weight: 400; display: flex; gap: 0.5rem; align-items: baseline; }
+fieldset label + label { margin-top: 0.4rem; }
+
+.hint { color: var(--muted); font-size: 0.9rem; }
+
+button {
+  font: inherit;
+  font-weight: 600;
+  padding: 0.55rem 1.4rem;
+  border: 0;
+  border-radius: 5px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+button:hover { background: #7a0000; }
+button.secondary { background: var(--surface); color: var(--fg); border: 1px solid var(--border); }
+button.secondary:hover { background: #ececea; }
+
+pre {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0.85rem;
+  overflow-x: auto;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+table.constraints { border-collapse: collapse; width: 100%; }
+table.constraints td { padding: 0.3rem 0.5rem 0.3rem 0; vertical-align: middle; }
+table.constraints td:first-child { width: 14rem; font-weight: 600; }
+
+.result { border-top: 1px solid var(--border); padding-top: 1.5rem; margin-top: 2rem; }
+.result:first-of-type { border-top: 0; }
+.result h3 { margin-top: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.result figure { margin: 1rem 0 0; }
+.result figure svg { max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 5px; }
+
+.error {
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+  border-left: 4px solid var(--accent);
+  border-radius: 4px;
+  padding: 0.85rem 1rem;
+  margin: 1.5rem 0;
+}
+.error h2 { margin: 0 0 0.4rem; font-size: 1.1rem; color: var(--accent); }
+.error p { margin: 0; }
+
+footer {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+footer a { color: var(--muted); }
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181c;
+    --fg: #e8e8e6;
+    --muted: #a0a0a0;
+    --accent: #ff6b6b;
+    --heading: #8fb8ff;
+    --border: #33363c;
+    --surface: #1e2126;
+    --link: #74a9f7;
+    --error-bg: #2a1c1c;
+    --error-border: #7a3b3b;
+  }
+  button { color: #1a1a1a; }
+  .result figure svg { background: #fff; }
+}

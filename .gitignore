@@ -33,3 +33,26 @@ inc/
 /MANIFEST.bak
 /pm_to_blib
 /*.zip
+
+# --- Phobius: licensed artefacts, never commit ---
+# phobius.model is distributed under an academic licence and decodeanhmm is a
+# licensed executable. Both are mounted at runtime from a non-public volume.
+engine/phobius.model
+engine/phobius.options
+engine/decodeanhmm
+
+# The legacy tree is kept locally for reference only. It must never be pushed:
+# it contains the licensed phobius.model and decodeanhmm, plus ~250 MB of
+# bundled Java 1.5 runtimes and vendored BioPerl.
+old_phobius/
+
+# Homology database, rebuilt with scripts/build_swissprot_db.sh
+data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/

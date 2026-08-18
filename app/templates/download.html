@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Phobius &mdash; downloads{% endblock %}
+{% block content %}
+<h2>Downloads</h2>
+
+<h3>Phobius</h3>
+<p>For a standalone copy of Phobius, see
+<a href="https://software.sbc.su.se/phobius.html">software.sbc.su.se/phobius.html</a>.
+Phobius is freely available for local installation for academic use.</p>
+
+<h3>HomologHMM</h3>
+<p>HomologHMM, the feature prediction method behind PolyPhobius, is distributed
+under the <a href="https://www.gnu.org/licenses/old-licenses/gpl-2.0.html">GPL</a>,
+packaged with a slightly modified copy of
+<a href="https://biojava.org/">BioJava</a>, redistributed under the
+<a href="https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html">LGPL</a>.</p>
+<p>For a standalone copy of PolyPhobius you also need the model file from the
+Phobius package.</p>
+
+<h3>Training data</h3>
+<p>Phobius was trained on four types of protein, each divided into ten
+cross-validation sets:</p>
+<ul>
+  <li>Transmembrane proteins with signal peptides: <code>m[0-9].faa</code></li>
+  <li>Transmembrane proteins without signal peptides: <code>t[0-9].faa</code></li>
+  <li>Non-transmembrane proteins with signal peptides: <code>s[0-9].faa</code></li>
+  <li>Non-transmembrane proteins without signal peptides: <code>g[0-9].faa</code></li>
+</ul>
+<p>The sets are in labelled FASTA format.</p>
+
+<h3>This web service</h3>
+<p>The source for this server is at
+<a href="https://github.com/statisticalbiotechnology/phobius_www">github.com/statisticalbiotechnology/phobius_www</a>.
+The prediction model itself is licensed separately and is not included.</p>
+{% endblock %}
