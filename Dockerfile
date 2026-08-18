@@ -39,9 +39,11 @@ RUN chmod +x ./start-script.sh
 # Mount point for the licensed model and the DIAMOND database.
 RUN mkdir -p /mnt/data && chown phobius:phobius /mnt/data
 
-ENV PHOBIUS_MODEL=/mnt/data/phobius.model \
-    PHOBIUS_ENGINE_DIR=/app/engine \
-    PHOBIUS_DIAMOND_DB=/mnt/data/swissprot.dmnd \
+# PHOBIUS_MODEL and PHOBIUS_DIAMOND_DB are deliberately NOT set here. An
+# explicit value overrides discovery, so pinning them to /mnt/data would break
+# every deployment whose storage is mounted somewhere else -- which is the
+# normal case, since the mount path is chosen per project. See app/config.py.
+ENV PHOBIUS_ENGINE_DIR=/app/engine \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 

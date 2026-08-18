@@ -56,9 +56,10 @@ both engines produce identical output.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `PHOBIUS_MODEL` | `/mnt/data/phobius.model` | licensed model file; must be named `phobius.model` |
+| `PHOBIUS_MODEL` | *discovered* | full path to the licensed model; must be named `phobius.model` |
+| `PHOBIUS_DATA_DIR` | *unset* | directory searched before the defaults |
 | `PHOBIUS_ENGINE_DIR` | `/app/engine` | directory holding the jars |
-| `PHOBIUS_DIAMOND_DB` | `/mnt/data/swissprot.dmnd` | homology database; absent disables that mode |
+| `PHOBIUS_DIAMOND_DB` | *discovered* | homology database; absent disables that mode |
 | `PHOBIUS_DECODEANHMM` | unset | optional licensed native engine |
 | `PHOBIUS_MAX_SEQUENCES` | `100` | sequences per request |
 | `PHOBIUS_MAX_RESIDUES` | `50000` | residues per request (~20 s of compute) |
@@ -68,6 +69,40 @@ both engines produce identical output.
 
 The model must keep the filename `phobius.model`: the Java engine loads it as a
 classpath resource by that exact name, not as an argument.
+
+### Finding the model
+
+You normally do not need to configure anything. Mount the storage holding
+`phobius.model` anywhere, and it is found by searching, in order:
+
+1. `PHOBIUS_MODEL`, if set — a full path, and always wins
+2. `PHOBIUS_DATA_DIR`, if set
+3. `/mnt/data`, `/home/data`, `/data`, `/app/data`
+4. `engine/phobius.model` beside the source, for local development
+
+The same search locates `swissprot.dmnd`. The image deliberately does **not**
+pin `PHOBIUS_MODEL`, because an explicit value beats discovery and would break
+every deployment whose storage is mounted somewhere else.
+
+If the model cannot be found, the container exits with a message listing every
+path it tried *and what each directory actually contains*, which is usually
+enough to spot a wrong mount path or a misnamed file.
+
+### Settings without environment variables
+
+SciLifeLab Serve provides no way to set environment variables for a custom app.
+Any setting can instead go in a `phobius.env` file placed on the mounted storage,
+alongside the model — `start-script.sh` loads it at boot:
+
+```sh
+# phobius.env
+PHOBIUS_MODEL=/home/data/licensed/phobius.model
+PHOBIUS_MAX_SEQUENCES=25
+PHOBIUS_MAX_CONCURRENCY=4
+```
+
+Only `KEY=VALUE` lines are honoured; anything else is ignored rather than
+executed, so the file cannot be used to run arbitrary commands from the volume.
 
 ## Homology search (optional)
 
@@ -134,7 +169,9 @@ unless you enable the homology search.
 
 1. Publish the image and make the GHCR package public, as above.
 2. In your project, define a storage mount and place `phobius.model` there —
-   Serve's file storage is not public, so the licensed model stays private.
+   Serve's file storage is not public, so the licensed model stays private. Any
+   mount path works; `/home/data` and `/mnt/data` are found automatically, and
+   anything else can be pointed to with a `phobius.env` file on the same storage.
 3. Create an app of type *Other*, point it at
    `ghcr.io/<owner>/phobius:latest`, set the port to 8000, and select the
    mount path.

@@ -1,8 +1,21 @@
 """Runtime configuration, all overridable by environment variable.
 
-The licensed model file is deliberately *not* baked into the container image.
-Point ``PHOBIUS_MODEL`` at a copy on a non-public volume; the service refuses to
-start without it rather than failing on the first request.
+The licensed model file is deliberately *not* baked into the container image; it
+is mounted from private storage at runtime, and the service refuses to start
+without it rather than failing on the first request.
+
+Where that mount lands differs by host, and SciLifeLab Serve lets the operator
+choose the mount path while offering no way to set an environment variable for a
+custom app. So rather than requiring configuration, the usual locations are
+probed for ``phobius.model``. Anything explicit still wins:
+
+1. ``PHOBIUS_MODEL`` -- a full path to the file
+2. ``PHOBIUS_DATA_DIR`` -- a directory searched before the defaults
+3. the directories in :data:`DATA_DIRS`
+4. ``engine/phobius.model`` next to the source, for local development
+
+Both variables can be set without platform support by dropping a ``phobius.env``
+file on the same mounted storage; ``start-script.sh`` loads it before startup.
 """
 
 from __future__ import annotations
@@ -13,6 +26,37 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
+
+#: Directories probed for mounted data files, in order. These are the paths
+#: hosting platforms commonly mount project storage at.
+DATA_DIRS: tuple[str, ...] = ("/mnt/data", "/home/data", "/data", "/app/data")
+
+
+def data_dirs() -> list[Path]:
+    """Directories searched for mounted data files, most specific first."""
+    candidates: list[str] = []
+    explicit = os.environ.get("PHOBIUS_DATA_DIR")
+    if explicit:
+        candidates.append(explicit)
+    candidates.extend(DATA_DIRS)
+    # dict.fromkeys keeps order while removing duplicates.
+    return [Path(d) for d in dict.fromkeys(candidates)]
+
+
+def discover(filename: str, env_var: str, fallback: Path) -> Path:
+    """Locate a mounted data file.
+
+    An explicit environment variable always wins; otherwise the candidate
+    directories are searched, falling back to a development-local path.
+    """
+    explicit = os.environ.get(env_var)
+    if explicit:
+        return Path(explicit)
+    for directory in data_dirs():
+        candidate = directory / filename
+        if candidate.is_file():
+            return candidate
+    return fallback
 
 
 def _path(env: str, default: Path) -> Path:
@@ -26,14 +70,16 @@ def _int(env: str, default: int) -> int:
 @dataclass(frozen=True)
 class Settings:
     # --- engine assets -----------------------------------------------------
-    model: Path = field(default_factory=lambda: _path("PHOBIUS_MODEL", _ROOT / "engine" / "phobius.model"))
+    model: Path = field(default_factory=lambda: discover(
+        "phobius.model", "PHOBIUS_MODEL", _ROOT / "engine" / "phobius.model"))
     engine_dir: Path = field(default_factory=lambda: _path("PHOBIUS_ENGINE_DIR", _ROOT / "engine"))
     java: str = field(default_factory=lambda: os.environ.get("PHOBIUS_JAVA", "java"))
 
     # --- homology search (PolyPhobius "search for homologues" mode) --------
     diamond: str = field(default_factory=lambda: os.environ.get("PHOBIUS_DIAMOND", "diamond"))
     kalign: str = field(default_factory=lambda: os.environ.get("PHOBIUS_KALIGN", "kalign"))
-    diamond_db: Path = field(default_factory=lambda: _path("PHOBIUS_DIAMOND_DB", _ROOT / "data" / "swissprot.dmnd"))
+    diamond_db: Path = field(default_factory=lambda: discover(
+        "swissprot.dmnd", "PHOBIUS_DIAMOND_DB", _ROOT / "data" / "swissprot.dmnd"))
 
     # --- limits ------------------------------------------------------------
     # Measured throughput of the Java engine is ~2.6k residues/s, so the
@@ -91,9 +137,15 @@ class Settings:
         """Return a list of fatal configuration problems (empty if healthy)."""
         problems: list[str] = []
         if not self.model.is_file():
+            searched = "\n      ".join(str(d / "phobius.model") for d in data_dirs())
             problems.append(
-                f"Phobius model not found at {self.model}. It is licensed and is not "
-                f"shipped in the image; mount it and set PHOBIUS_MODEL."
+                "phobius.model not found. It is licensed and is deliberately not "
+                "shipped in this image.\n"
+                "    Mount it under any of these paths:\n"
+                f"      {searched}\n"
+                "    or set PHOBIUS_MODEL / PHOBIUS_DATA_DIR -- which can be done "
+                "without platform\n    support by putting a phobius.env file next "
+                "to the model on the same storage."
             )
         if self.model.name != "phobius.model":
             problems.append(
