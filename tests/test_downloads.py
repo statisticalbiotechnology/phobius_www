@@ -55,14 +55,27 @@ def test_missing_directory_is_not_an_error(monkeypatch, tmp_path):
 
 class TestRoute:
     @pytest.fixture
-    def client(self, downloads, monkeypatch):
+    def client(self, downloads, tmp_path, monkeypatch):
         from fastapi.testclient import TestClient
 
         import app.config as config
         import app.main as main
 
-        monkeypatch.setattr(config, "settings", Settings())
-        monkeypatch.setattr(main, "settings", config.settings)
+        # Serving a download never touches the prediction engine, but the app
+        # refuses to start without a model. A placeholder lets these tests run
+        # on CI, where the licensed model is deliberately absent -- which is
+        # exactly where the traversal checks below are most worth having.
+        placeholder = tmp_path / "phobius.model"
+        placeholder.write_bytes(b"placeholder, not a real model")
+        monkeypatch.setenv("PHOBIUS_MODEL", str(placeholder))
+
+        settings = Settings()
+        problems = settings.check()
+        if problems:
+            pytest.skip("; ".join(problems))
+
+        monkeypatch.setattr(config, "settings", settings)
+        monkeypatch.setattr(main, "settings", settings)
         with TestClient(main.app) as c:
             yield c
 
