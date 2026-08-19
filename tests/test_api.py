@@ -171,3 +171,35 @@ def test_polyphobius_rejects_ragged_alignment(client):
                                       "format": "nog"})
     assert r.status_code == 400
     assert "same length" in r.text
+
+
+# --- instructions page ----------------------------------------------------
+
+def test_instructions_carry_the_example_sequence(client):
+    """Users asked for the example the old server had, so it is pinned here."""
+    body = client.get("/instructions").text
+    assert "Q8TCT8|PSL2_HUMAN" in body
+    assert "MGPQRRLSPAGAALLWGFLLQLTAAQEAILHASGNGTTKDYCMLYNPYWTALPSTLENAT" in body
+
+
+def test_example_sequence_is_valid_input(client):
+    """The documented example must actually run, or it is worse than nothing."""
+    import re
+
+    body = client.get("/instructions").text
+    block = re.search(r'<pre id="example-fasta">(.*?)</pre>', body, re.S).group(1)
+    fasta = block.replace("&gt;", ">").replace("&amp;", "&")
+
+    r = client.post("/api/predict", json={"sequence": fasta})
+    assert r.status_code == 200
+    prediction = r.json()["predictions"][0]
+    assert prediction["id"] == "Q8TCT8|PSL2_HUMAN"
+    assert prediction["length"] == 520
+    assert prediction["transmembrane_count"] > 0
+
+
+def test_example_has_a_copy_button(client):
+    body = client.get("/instructions").text
+    assert 'class="copy-example' in body
+    assert 'data-target="example-fasta"' in body
+    assert 'id="example-fasta"' in body

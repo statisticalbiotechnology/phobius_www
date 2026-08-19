@@ -43,7 +43,7 @@ def test_explicit_path_wins(monkeypatch, tmp_path):
 def test_data_dir_is_searched_first(monkeypatch, tmp_path):
     monkeypatch.setenv("PHOBIUS_DATA_DIR", str(tmp_path))
     assert data_dirs()[0] == tmp_path
-    assert [str(d) for d in data_dirs()[1:]] == list(DATA_DIRS)
+    assert data_dirs()[1] == tmp_path / "db"
 
 
 def test_image_does_not_pin_the_data_paths():
@@ -76,6 +76,47 @@ def test_model_found_on_a_mounted_directory(monkeypatch, tmp_path):
 def test_falls_back_when_nothing_is_mounted(tmp_path, no_mounts):
     fallback = tmp_path / "engine" / "phobius.model"
     assert discover("phobius.model", "PHOBIUS_MODEL", fallback) == fallback
+
+
+def test_db_subdirectory_is_searched(monkeypatch, tmp_path):
+    """A BLAST database is nine files; keeping it in db/ keeps the mount tidy."""
+    mount = tmp_path / "data"
+    (mount / "db").mkdir(parents=True)
+    (mount / "db" / "swissprot.pin").write_bytes(b"x")
+    monkeypatch.setenv("PHOBIUS_DATA_DIR", str(mount))
+    assert Settings().blast_db == mount / "db" / "swissprot"
+
+
+def test_mount_is_searched_before_its_db_subdirectory(monkeypatch, tmp_path):
+    mount = tmp_path / "data"
+    (mount / "db").mkdir(parents=True)
+    (mount / "swissprot.pin").write_bytes(b"x")
+    (mount / "db" / "swissprot.pin").write_bytes(b"x")
+    monkeypatch.setenv("PHOBIUS_DATA_DIR", str(mount))
+    assert Settings().blast_db == mount / "swissprot"
+
+
+def test_model_may_also_live_in_the_db_subdirectory(monkeypatch, tmp_path):
+    """The same rule applies to every mounted file, not just the database."""
+    mount = tmp_path / "data"
+    (mount / "db").mkdir(parents=True)
+    (mount / "db" / "phobius.model").write_bytes(b"x")
+    monkeypatch.setenv("PHOBIUS_DATA_DIR", str(mount))
+    settings = Settings()
+    assert settings.model == mount / "db" / "phobius.model"
+    # The Java engine loads the model as a classpath resource, so wherever it is
+    # found, that directory has to reach the classpath.
+    assert str(mount / "db") in settings.classpath
+
+
+def test_every_mount_gets_a_db_subdirectory_entry():
+    from app.config import DATA_SUBDIRS
+
+    searched = [str(d) for d in data_dirs()]
+    assert DATA_SUBDIRS == ("", "db")
+    for mount in DATA_DIRS:
+        assert mount in searched
+        assert f"{mount}/db" in searched
 
 
 def test_search_order_has_no_duplicates(monkeypatch):

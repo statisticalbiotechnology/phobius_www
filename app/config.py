@@ -32,16 +32,30 @@ _ROOT = Path(__file__).resolve().parent.parent
 #: hosting platforms commonly mount project storage at.
 DATA_DIRS: tuple[str, ...] = ("/mnt/data", "/home/data", "/data", "/app/data")
 
+#: Sub-directories of each mount that are searched as well as the mount itself.
+#: A BLAST database is nine files sharing a prefix, so keeping it in a ``db/``
+#: sub-directory next to the model is markedly tidier than having it loose.
+DATA_SUBDIRS: tuple[str, ...] = ("", "db")
+
 
 def data_dirs() -> list[Path]:
-    """Directories searched for mounted data files, most specific first."""
-    candidates: list[str] = []
+    """Directories searched for mounted data files, most specific first.
+
+    Each mount point is searched both directly and in its ``db/``
+    sub-directory, so files may be organised either way.
+    """
+    mounts: list[str] = []
     explicit = os.environ.get("PHOBIUS_DATA_DIR")
     if explicit:
-        candidates.append(explicit)
-    candidates.extend(DATA_DIRS)
+        mounts.append(explicit)
+    mounts.extend(DATA_DIRS)
+
+    searched: list[Path] = []
     # dict.fromkeys keeps order while removing duplicates.
-    return [Path(d) for d in dict.fromkeys(candidates)]
+    for mount in dict.fromkeys(mounts):
+        for sub in DATA_SUBDIRS:
+            searched.append(Path(mount) / sub if sub else Path(mount))
+    return searched
 
 
 def discover(filename: str, env_var: str, fallback: Path) -> Path:
@@ -74,6 +88,22 @@ def discover_blast_db() -> Path:
             if (directory / marker).is_file():
                 return directory / "swissprot"
     return _ROOT / "data" / "swissprot"
+
+
+def discover_downloads_dir() -> Path:
+    """Locate the directory holding downloadable bundles.
+
+    Searched like every other mounted resource, so ``/home/data/download`` works
+    with no configuration.
+    """
+    explicit = os.environ.get("PHOBIUS_DOWNLOADS")
+    if explicit:
+        return Path(explicit)
+    for directory in data_dirs():
+        candidate = directory / "download"
+        if candidate.is_dir():
+            return candidate
+    return _ROOT / "download"
 
 
 def _path(env: str, default: Path) -> Path:
@@ -112,6 +142,11 @@ class Settings:
     engine_timeout: int = field(default_factory=lambda: _int("PHOBIUS_ENGINE_TIMEOUT", 120))
     homology_timeout: int = field(default_factory=lambda: _int("PHOBIUS_HOMOLOGY_TIMEOUT", 120))
     max_concurrency: int = field(default_factory=lambda: _int("PHOBIUS_MAX_CONCURRENCY", 2))
+
+    # --- downloads ---------------------------------------------------------
+    # The standalone Phobius bundle is licensed, so like the model it is served
+    # from mounted storage rather than shipped in the image.
+    downloads_dir: Path = field(default_factory=lambda: discover_downloads_dir())
 
     # --- optional fast path ------------------------------------------------
     # decodeanhmm is licensed and must never ship in a public image. If a copy
@@ -307,6 +342,26 @@ def homology_search_status(cfg: "Settings") -> tuple[bool, str]:
 
     _homology_status[key] = status
     return status
+
+
+#: Extensions offered for download. Anything else in the directory is ignored,
+#: so a stray file cannot be published by dropping it on the volume.
+DOWNLOAD_SUFFIXES = (".tar.gz", ".tgz", ".zip", ".pdf")
+
+
+def available_downloads(cfg: "Settings") -> list[Path]:
+    """Files offered on the download page, newest name order.
+
+    Returning concrete paths discovered by scanning means no request value is
+    ever joined onto a filesystem path, so the download route cannot be walked
+    out of this directory.
+    """
+    if not cfg.downloads_dir.is_dir():
+        return []
+    return sorted(
+        f for f in cfg.downloads_dir.iterdir()
+        if f.is_file() and f.name.endswith(DOWNLOAD_SUFFIXES)
+    )
 
 
 settings = Settings()

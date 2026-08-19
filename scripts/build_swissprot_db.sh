@@ -9,7 +9,7 @@
 # subject sequences that the alignment step needs.
 set -euo pipefail
 
-DEST="${1:-/home/data}"
+DEST="${1:-/home/data/db}"
 MAKEBLASTDB="${MAKEBLASTDB:-makeblastdb}"
 URL="https://ftp.ebi.ac.uk/pub/databases/uniprot/current_release/knowledgebase/complete/uniprot_sprot.fasta.gz"
 
@@ -24,5 +24,6 @@ zcat "$DEST/uniprot_sprot.fasta.gz" \
 
 rm -f "$DEST/uniprot_sprot.fasta.gz"
 echo "Done: $DEST/swissprot.* ($(du -ch "$DEST"/swissprot.* | tail -1 | cut -f1))"
-echo "No configuration needed if $DEST is a searched mount path; otherwise set"
+echo "No configuration needed if $DEST is a searched mount path (a mount or its"
+echo "db/ sub-directory); otherwise set"
 echo "PHOBIUS_BLAST_DB=$DEST/swissprot"

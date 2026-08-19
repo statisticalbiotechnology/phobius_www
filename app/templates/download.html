@@ -4,9 +4,73 @@
 <h2>Downloads</h2>
 
 <h3>Phobius</h3>
-<p>For a standalone copy of Phobius, see
-<a href="https://software.sbc.su.se/phobius.html">software.sbc.su.se/phobius.html</a>.
-Phobius is freely available for local installation for academic use.</p>
+<p>Phobius is freely available for local installation <strong>for academic
+use</strong>. The bundle contains the <code>phobius.pl</code> command-line
+predictor, the decoder and the model, and runs on any Unix with Perl.</p>
+
+{% if phobius_bundles %}
+{% for f in phobius_bundles %}
+<p>
+  <button type="button" class="open-licence" data-dialog="licence-{{ loop.index }}">
+    Download Phobius
+  </button>
+  <span class="hint">{{ f.name }} &mdash; {{ f.size_mb }} MB</span>
+</p>
+
+<dialog id="licence-{{ loop.index }}" class="licence" aria-labelledby="licence-title-{{ loop.index }}">
+  <h3 id="licence-title-{{ loop.index }}">Phobius 1.01 standalone download</h3>
+  <p>Please note that Phobius download via this page is intended for academic
+  users only. Other users are requested to contact Erik Sonnhammer at
+  <a href="mailto:Erik.Sonnhammer@gmail.com">Erik.Sonnhammer@gmail.com</a></p>
+  <p>By pressing &ldquo;Download Phobius&rdquo; below I agree to use the obtained
+  software only for private study, education or nonprofit research.</p>
+  <p class="licence-actions">
+    <a class="button" href="/download/{{ f.name }}" download>Download Phobius</a>
+    <button type="button" class="secondary close-licence">Cancel</button>
+  </p>
+</dialog>
+{% endfor %}
+
+<noscript>
+  <p>Phobius is intended for academic users only. Other users are requested to
+  contact Erik Sonnhammer at
+  <a href="mailto:Erik.Sonnhammer@gmail.com">Erik.Sonnhammer@gmail.com</a>.
+  By downloading you agree to use the software only for private study, education
+  or nonprofit research.</p>
+  <ul>
+    {% for f in phobius_bundles %}
+    <li><a href="/download/{{ f.name }}">{{ f.name }}</a> ({{ f.size_mb }} MB)</li>
+    {% endfor %}
+  </ul>
+</noscript>
+
+<script>
+  // Native <dialog>: modal behaviour, Esc to dismiss and focus handling come
+  // for free, so no library is needed. Without scripting the <noscript> block
+  // above still states the terms and offers the file.
+  document.querySelectorAll(".open-licence").forEach(function (trigger) {
+    trigger.addEventListener("click", function () {
+      var dialog = document.getElementById(trigger.dataset.dialog);
+      if (dialog && dialog.showModal) { dialog.showModal(); }
+      else if (dialog) { dialog.setAttribute("open", ""); }
+    });
+  });
+  document.querySelectorAll(".close-licence").forEach(function (button) {
+    button.addEventListener("click", function () {
+      button.closest("dialog").close();
+    });
+  });
+  // Close once the download has been started from the link.
+  document.querySelectorAll("dialog.licence a.button").forEach(function (link) {
+    link.addEventListener("click", function () {
+      link.closest("dialog").close();
+    });
+  });
+</script>
+{% else %}
+<p>The download is not currently available from this server. See
+<a href="https://software.sbc.su.se/phobius.html">software.sbc.su.se/phobius.html</a>.</p>
+{% endif %}
 
 <h3>HomologHMM</h3>
 <p>HomologHMM, the feature prediction method behind PolyPhobius, is distributed
@@ -16,6 +80,14 @@ packaged with a slightly modified copy of
 <a href="https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html">LGPL</a>.</p>
 <p>For a standalone copy of PolyPhobius you also need the model file from the
 Phobius package.</p>
+
+{% if other_downloads %}
+<ul>
+  {% for f in other_downloads %}
+  <li><a href="/download/{{ f.name }}">{{ f.name }}</a> ({{ f.size_mb }} MB)</li>
+  {% endfor %}
+</ul>
+{% endif %}
 
 <h3>Training data</h3>
 <p>Phobius was trained on four types of protein, each divided into ten

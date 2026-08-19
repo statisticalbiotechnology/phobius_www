@@ -6,9 +6,14 @@
 # /app/start-script.sh. See the Dockerfile.
 set -eu
 
-# Directories searched for mounted data. Keep in step with DATA_DIRS in
-# app/config.py -- the platform chooses where project storage is mounted.
-DATA_DIRS="${PHOBIUS_DATA_DIR:-} /mnt/data /home/data /data /app/data"
+# Directories searched for mounted data. Keep in step with DATA_DIRS and
+# DATA_SUBDIRS in app/config.py -- the platform chooses where project storage is
+# mounted, and each mount is searched both directly and in its db/
+# sub-directory so a multi-file BLAST database can be kept tidy.
+DATA_DIRS=""
+for _mount in ${PHOBIUS_DATA_DIR:-} /mnt/data /home/data /data /app/data; do
+    DATA_DIRS="$DATA_DIRS $_mount $_mount/db"
+done
 
 # Serve offers no way to set environment variables for a custom app, so any
 # setting can instead be placed in a phobius.env file on the mounted storage.

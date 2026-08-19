@@ -30,6 +30,7 @@ The mounted directory must contain `phobius.model`. See **Licensed files** below
 | `app/models.py` | request validation and submission limits |
 | `app/main.py` | FastAPI routes and templates |
 | `start-script.sh` | container entry point; Serve runs this from the WORKDIR |
+| `scripts/build_phobius_bundle.sh` | builds the academic download bundle |
 | `engine/` | `homologhmm.jar` (GPL), `biojava.jar` (LGPL) |
 | `tests/golden/` | reference output captured from the legacy engine |
 
@@ -111,8 +112,21 @@ You normally do not need to configure anything. Mount the storage holding
 3. `/mnt/data`, `/home/data`, `/data`, `/app/data`
 4. `engine/phobius.model` beside the source, for local development
 
-The same search locates the BLAST database, keying off `swissprot.pin`
-(or `swissprot.pal` for a split database) and using its prefix. The image deliberately does **not**
+Each mount is searched both directly and in a `db/` sub-directory, so a tidy
+layout works without any configuration:
+
+```
+/home/data/phobius.model
+/home/data/phobius.options       # only needed with the native engine
+/home/data/decodeanhmm           # optional
+/home/data/phobius.env           # optional
+/home/data/db/swissprot.*        # the nine BLAST database files
+/home/data/download/*.tar.gz     # bundles offered on the download page
+```
+
+The same search locates the BLAST database, keying off `swissprot.pin` (or
+`swissprot.pal` for a split database) and using its prefix. Since that is nine
+files, `/home/data/db/` is the tidier home for it and is searched by default. The image deliberately does **not**
 pin `PHOBIUS_MODEL`, because an explicit value beats discovery and would break
 every deployment whose storage is mounted somewhere else.
 
@@ -143,11 +157,11 @@ and is the reproducible option. The automatic search needs a BLAST database on
 the mounted storage:
 
 ```bash
-./scripts/build_swissprot_db.sh /home/data
+./scripts/build_swissprot_db.sh /home/data/db
 ```
 
 That downloads Swiss-Prot and produces ~340 MB of `swissprot.*` files, well
-inside the 5 GB volume cap. The option appears in the PolyPhobius form by itself
+inside the 5 GB volume cap. `/home/data` works too — both are searched. The option appears in the PolyPhobius form by itself
 once the database is readable.
 
 `-parse_seqids` is required and the script passes it: without it the search still
@@ -238,6 +252,31 @@ unless you enable the homology search.
 
 Default resources (2 vCPU, 4 GB) are ample. If you raise them, raise
 `PHOBIUS_MAX_CONCURRENCY` to match.
+
+## The academic download bundle
+
+The download page offers the standalone Phobius distribution. It contains
+`phobius.model` and `decodeanhmm`, so like the model it is **licensed and never
+part of the image** — it is served from `download/` on the mounted storage:
+
+```bash
+./scripts/build_phobius_bundle.sh ~/bin /home/data/download
+```
+
+That produces a ~530 KB `phobius-1.01.tar.gz` holding `phobius.pl`, the decoder,
+the model, the decoder options and a README with the licence terms. The page
+lists whatever is present; with nothing there it points at the licensing page
+instead.
+
+Only `.tar.gz`, `.tgz`, `.zip` and `.pdf` files are offered, and the route serves
+files matched against a scan of the directory rather than joining the requested
+name onto a path — so a stray `phobius.env` on the volume cannot be fetched, and
+traversal is impossible by construction rather than by filtering.
+
+> **Do not distribute the old web-server tree as "Phobius".** A `phobius.tar.gz`
+> containing `html/`, `cgi-bin/` and `program/` is a snapshot of the retired
+> server: 90 MB of obsolete JREs and vendored BioPerl, including the legacy
+> `predict.pl` whose FASTA-header handling allowed command injection.
 
 ## The old address
 

@@ -169,3 +169,49 @@ footer a { color: var(--muted); }
   button { color: #1a1a1a; }
   .result figure svg { background: #fff; }
 }
+
+/* --- licence dialog on the download page --- */
+dialog.licence {
+  max-width: 34rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.5rem 1.75rem;
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+}
+dialog.licence::backdrop { background: rgba(0, 0, 0, 0.45); }
+dialog.licence h3 { margin-top: 0; color: var(--accent); }
+dialog.licence p { margin: 0.75rem 0; }
+.licence-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 1.25rem !important;
+  flex-wrap: wrap;
+}
+a.button {
+  display: inline-block;
+  font-weight: 600;
+  padding: 0.55rem 1.4rem;
+  border-radius: 5px;
+  background: var(--accent);
+  color: #fff;
+  text-decoration: none;
+}
+a.button:hover { background: #7a0000; }
+@media (prefers-color-scheme: dark) {
+  a.button { color: #1a1a1a; }
+}
+
+/* --- copyable example block --- */
+.example { position: relative; }
+.example pre { margin-top: 0; }
+.example .copy-example {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
+  z-index: 1;
+}

@@ -7,6 +7,69 @@
 <p>Phobius takes proteins in <strong>FASTA format</strong>. It recognises the
 20 amino acids plus B, Z and X, which are all treated as unknown. Any other
 character is removed. Lowercase input is accepted and converted to uppercase.</p>
+<p>This is an example (one protein):</p>
+<div class="example">
+  <button type="button" class="copy-example secondary" data-target="example-fasta">Copy</button>
+<pre id="example-fasta">&gt;Q8TCT8|PSL2_HUMAN you can have comments after the ID
+MGPQRRLSPAGAALLWGFLLQLTAAQEAILHASGNGTTKDYCMLYNPYWTALPSTLENAT
+SISLMNLTSTPLCNLSDIPPVGIKSKAVVVPWGSCHFLEKARIAQKGGAEAMLVVNNSVL
+FPPSGNRSEFPDVKILIAFISYKDFRDMNQTLGDNITVKMYSPSWPNFDYTMVVIFVIAV
+FTVALGGYWSGLVELENLKAVTTEDREMRKKKEEYLTFSPLTVVIFVVICCVMMVLLYFF
+YKWLVYVMIAIFCIASAMSLYNCLAALIHKIPYGQCTIACRGKNMEVRLIFLSGLCIAVA
+VVWAVFRNEDRWAWILQDILGIAFCLNLIKTLKLPNFKSCVILLGLLLLYDVFFVFITPF
+ITKNGESIMVELAAGPFGNNEKLPVVIRVPKLIYFSVMSVCLMPVSILGFGDIIVPGLLI
+AYCRRFDVQTGSSYIYYVSSTVAYAIGMILTFVVLVLMKKGQPALLYLVPCTLITASVVA
+WRRKEMKKFWKGNSYQMMDHLDCATNEENPVISGEQIVQQ</pre>
+</div>
+
+<script>
+  // Clipboard API needs a secure context; fall back to a hidden textarea so the
+  // button still works if the service is ever reached over plain http.
+  document.querySelectorAll(".copy-example").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var source = document.getElementById(button.dataset.target);
+      var text = source.textContent;
+      var restore = function (label) {
+        button.textContent = label;
+        setTimeout(function () { button.textContent = "Copy"; }, 1500);
+      };
+      var done = function () { restore("Copied"); };
+      var failed = function () {
+        // Only useful if there is something to copy, so select the example.
+        var range = document.createRange();
+        range.selectNodeContents(source);
+        var selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        restore("Press Ctrl+C");
+      };
+      var fallback = function () {
+        var area = document.createElement("textarea");
+        area.value = text;
+        area.setAttribute("readonly", "");
+        area.style.position = "fixed";
+        area.style.opacity = "0";
+        document.body.appendChild(area);
+        area.select();
+        try {
+          if (document.execCommand("copy")) { done(); } else { failed(); }
+        } catch (e) {
+          failed();
+        } finally {
+          area.remove();
+        }
+      };
+      // A rejected clipboard write must not fail silently -- fall through to the
+      // textarea method, and say so if that fails too.
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(done, fallback);
+      } else {
+        fallback();
+      }
+    });
+  });
+</script>
+
 <p>This server accepts up to {{ settings.max_sequences }} sequences and
 {{ "{:,}".format(settings.max_residues_total) }} residues per request; a single
 sequence may be at most {{ "{:,}".format(settings.max_residues_single) }} residues.

@@ -24,12 +24,17 @@ from typing import Callable
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from . import __version__, engines, features, plot
-from .config import homology_search_status, native_engine_status, settings
+from .config import (
+    available_downloads,
+    homology_search_status,
+    native_engine_status,
+    settings,
+)
 from .fasta import FastaError, Record, parse, parse_alignment
 from .homology import HomologyError, search_and_align
 from .models import (
@@ -178,9 +183,37 @@ def page_instructions(request: Request):
     return _render(request, "instructions.html", "instructions")
 
 
+def _describe(files: list[Path]) -> list[dict]:
+    return [{"name": f.name, "size_mb": round(f.stat().st_size / 1_048_576, 1)}
+            for f in files]
+
+
 @app.get("/download", response_class=HTMLResponse)
 def page_download(request: Request):
-    return _render(request, "download.html", "download")
+    files = available_downloads(settings)
+    # Partitioned here rather than in the template: Jinja has no regex test, and
+    # this keeps size lookups off the render path.
+    return _render(
+        request, "download.html", "download",
+        phobius_bundles=_describe([f for f in files if f.name.startswith("phobius")]),
+        other_downloads=_describe([f for f in files if not f.name.startswith("phobius")]),
+    )
+
+
+@app.get("/download/{name}")
+def download(name: str):
+    """Serve a bundle from the mounted storage.
+
+    The response is chosen from files *discovered* by scanning the directory, so
+    the requested name is only ever compared against that set and never joined
+    onto a path. That makes traversal impossible rather than merely filtered.
+    """
+    offered = {f.name: f for f in available_downloads(settings)}
+    target = offered.get(name)
+    if target is None:
+        raise HTTPException(status_code=404, detail=f"No such download: {name}")
+    log.info("download: %s", name)
+    return FileResponse(target, filename=name, media_type="application/octet-stream")
 
 
 @app.get("/api", response_class=HTMLResponse)
