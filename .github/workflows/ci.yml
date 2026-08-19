@@ -56,7 +56,12 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE }}
+          # SciLifeLab Serve refuses to re-fetch a tag it has already deployed,
+          # so every push must produce a NEW unique tag. The date-and-sha tag is
+          # the one to paste into the app settings; 'latest' is for local
+          # `docker pull` only and will never update a Serve deployment.
           tags: |
+            type=raw,value={{date 'YYYYMMDD'}}-{{sha}},enable={{is_default_branch}}
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=branch
             type=semver,pattern={{version}}
@@ -198,14 +203,43 @@ jobs:
       - name: Summary
         if: github.event_name == 'push'
         run: |
+          # Pick the date-and-sha tag: Serve will not re-fetch a tag it has
+          # already deployed, so this is the only one that updates a running app.
+          #
+          # The tags output is multi-line and is substituted into this script
+          # verbatim, so it must be quoted -- unquoted, the second and later
+          # lines are run as commands. `|| true` because grep exits 1 when there
+          # is no match, which would abort the step under `set -e`.
+          all_tags="${{ steps.meta.outputs.tags }}"
+          # Prefer the date-and-sha tag; on a version-tag build take the semver
+          # tag instead. Never 'latest' or a branch name -- Serve will not
+          # re-fetch either once deployed.
+          deploy_tag=$(printf '%s\n' "$all_tags" | grep -E ':[0-9]{8}-' | head -1 || true)
+          if [ -z "$deploy_tag" ]; then
+            deploy_tag=$(printf '%s\n' "$all_tags" \
+                         | grep -E ':[0-9]+\.[0-9]+' | head -1 || true)
+          fi
           {
-            echo "### Published"
+            echo "### Deploy to SciLifeLab Serve"
+            echo
+            echo "Paste this into the app's **Settings → Image**, then press **Update**:"
+            echo
+            echo '```'
+            echo "${deploy_tag:-${{ env.IMAGE }}@${{ steps.push.outputs.digest }}}"
+            echo '```'
+            echo
+            echo "Serve will not re-fetch a tag it has already deployed, so a new"
+            echo "tag is required for every update. \`:latest\` is published for"
+            echo "local \`docker pull\` only and will never update a Serve app."
+            echo
+            echo "<details><summary>All tags published</summary>"
             echo
             echo '```'
             echo "${{ steps.meta.outputs.tags }}"
             echo '```'
             echo
             echo "Digest: \`${{ steps.push.outputs.digest }}\`"
+            echo "</details>"
             echo
             echo "> On the first push the GHCR package is **private**. Make it public"
             echo "> under Packages → phobius → Package settings, otherwise"

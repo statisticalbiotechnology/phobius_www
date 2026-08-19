@@ -192,9 +192,17 @@ is compute, not I/O.
 ## Publishing the image
 
 `.github/workflows/ci.yml` runs the tests, then builds the image, then verifies
-it, and only then pushes to `ghcr.io/<owner>/phobius`. Pushes to `master`
-publish `latest` and a short-SHA tag; a `v*` git tag additionally publishes
-semver tags:
+it, and only then pushes to `ghcr.io/<owner>/phobius`.
+
+**Serve never re-fetches a tag it has already deployed**, so `:latest` will not
+update a running app — the platform requires a new, unique tag for every update
+and there is no restart button. Each push to `master` therefore publishes a
+date-and-sha tag, e.g. `:20260819-1f07289`, and the workflow run's summary prints
+the exact reference to paste into the app's *Settings → Image*. `:latest` is
+published only for local `docker pull`.
+
+A `v*` git tag additionally publishes semver tags, which are equally valid to
+deploy:
 
 ```bash
 git tag v2.0.0 && git push --tags     # -> :2.0.0, :2.0, :latest
@@ -240,6 +248,8 @@ container, holds no licensed or private data, and needs no persistent volume
 unless you enable the homology search.
 
 1. Publish the image and make the GHCR package public, as above.
+   To deploy an update afterwards, paste the new tag from the workflow summary
+   into *Settings → Image* and press **Update** — reusing a tag does nothing.
 2. In your project, define a storage mount and place `phobius.model` there —
    Serve's file storage is not public, so the licensed model stays private. Any
    mount path works; `/home/data` and `/mnt/data` are found automatically, and
